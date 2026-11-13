@@ -1,11 +1,13 @@
 import { lstat, readdir, realpath } from "fs/promises";
 import type { Dirent } from "fs";
 import path from "path";
-import { categoryMeta, categoryOf } from "./categories";
-import type { CategoryTotal, ScanResult, UsageNode } from "./types";
+import { categoryOf } from "./categories";
+import type { CategoryTotal, FileEntry, ScanResult, UsageNode } from "./types";
 
-const STRUCT_DEPTH = 2;
-const TOP_FOLDERS = 8;
+const STRUCT_DEPTH = 8;
+const TOP_FOLDERS = 200;
+const TOP_FILES = 400;
+const LEVEL_FILES = 400;
 
 type Bucket = { size: number; files: number };
 type TypeMap = Record<string, Bucket>;
@@ -119,7 +121,8 @@ async function listDir(dir: string): Promise<{ files: { name: string; full: stri
   });
 }
 
-async function statFiles(files: { name: string; full: string }[], ctx: Accum, into: TypeMap) {
+async function statFiles(files: { name: string; full: string }[], ctx: Accum, into: TypeMap): Promise<FileEntry[]> {
+  const found: FileEntry[] = [];
   await mapPool(files, 16, async (file) => {
     await fileSlots(async () => {
       abortIfNeeded(ctx);
@@ -131,12 +134,18 @@ async function statFiles(files: { name: string; full: string }[], ctx: Accum, in
         bucket.size += stat.size;
         bucket.files += 1;
         into[id] = bucket;
+        found.push({ name: file.name, path: file.full, size: stat.size });
         bump(ctx, stat.size);
       } catch {
         ctx.denied += 1;
       }
     });
   });
+  return found;
+}
+
+function biggest(files: FileEntry[]): FileEntry[] {
+  return [...files].sort((a, b) => b.size - a.size).slice(0, 15);
 }
 
 function toList(types: TypeMap): CategoryTotal[] {
@@ -155,19 +164,6 @@ function mergeInto(target: TypeMap, source: TypeMap) {
   }
 }
 
-function categoryNodes(dir: string, types: TypeMap): UsageNode[] {
-  return toList(types).map((total) => ({
-    name: categoryMeta(total.id).label,
-    path: dir,
-    size: total.size,
-    files: total.files,
-    kind: "category" as const,
-    category: total.id,
-    byType: [total],
-    children: [],
-  }));
-}
-
 function makeDir(name: string, dir: string, types: TypeMap, children: UsageNode[]): UsageNode {
   const byType = toList(types);
   return {
@@ -178,6 +174,7 @@ function makeDir(name: string, dir: string, types: TypeMap, children: UsageNode[
     kind: "dir",
     byType,
     children,
+    loaded: true,
   };
 }
 
@@ -194,23 +191,47 @@ function mergeLists(lists: CategoryTotal[][]): CategoryTotal[] {
   return toList(types);
 }
 
-function prune(children: UsageNode[], parentPath: string): UsageNode[] {
-  const folders = children.filter((child) => child.kind === "dir").sort((a, b) => b.size - a.size);
-  const categories = children.filter((child) => child.kind === "category");
-  const keep = folders.slice(0, TOP_FOLDERS);
-  const dropped = folders.slice(TOP_FOLDERS);
-  const visual = [...keep, ...categories];
-  if (dropped.length > 0) {
-    visual.push({
-      name: "Other",
-      path: parentPath,
-      size: dropped.reduce((sum, folder) => sum + folder.size, 0),
-      files: dropped.reduce((sum, folder) => sum + folder.files, 0),
-      kind: "other",
-      byType: mergeLists(dropped.map((folder) => folder.byType)),
+function fileNodes(files: FileEntry[]): UsageNode[] {
+  return files.map((file) => {
+    const id = categoryOf(file.name);
+    const total: CategoryTotal = { id, size: file.size, files: 1 };
+    return {
+      name: file.name,
+      path: file.path,
+      size: file.size,
+      files: 1,
+      kind: "file" as const,
+      category: id,
+      byType: [total],
       children: [],
-    });
-  }
+    };
+  });
+}
+
+function smallerItems(dropped: UsageNode[], parentPath: string): UsageNode {
+  return {
+    name: "Smaller items",
+    path: parentPath,
+    size: dropped.reduce((sum, node) => sum + node.size, 0),
+    files: dropped.reduce((sum, node) => sum + node.files, 0),
+    kind: "other",
+    byType: mergeLists(dropped.map((node) => node.byType)),
+    children: [],
+  };
+}
+
+function assemble(
+  folders: UsageNode[],
+  files: UsageNode[],
+  parentPath: string,
+  folderCap = TOP_FOLDERS,
+  fileCap = TOP_FILES,
+): UsageNode[] {
+  const sortedFolders = [...folders].sort((a, b) => b.size - a.size);
+  const sortedFiles = [...files].sort((a, b) => b.size - a.size);
+  const dropped = [...sortedFolders.slice(folderCap), ...sortedFiles.slice(fileCap)];
+  const visual = [...sortedFolders.slice(0, folderCap), ...sortedFiles.slice(0, fileCap)];
+  if (dropped.length > 0) visual.push(smallerItems(dropped, parentPath));
   visual.sort((a, b) => b.size - a.size);
   return visual;
 }
@@ -253,6 +274,7 @@ async function crawl(
 
 async function measure(dir: string, name: string, ctx: Accum, visited: Set<string>): Promise<Built> {
   const types: TypeMap = {};
+  let directFiles: FileEntry[] = [];
   await crawl(
     [dir],
     async (current) => {
@@ -268,13 +290,32 @@ async function measure(dir: string, name: string, ctx: Accum, visited: Set<strin
         ctx.denied += 1;
         return [];
       }
-      await statFiles(listed.files, ctx, types);
+      const files = await statFiles(listed.files, ctx, types);
+      if (norm(current) === norm(dir)) directFiles = files;
       return listed.subs;
     },
     4,
     ctx.signal,
   );
-  const node = makeDir(name, dir, types, prune(categoryNodes(dir, types), dir));
+  const node = makeDir(name, dir, types, []);
+  const shown = assemble([], fileNodes(directFiles), dir);
+  const shownBytes = shown.reduce((sum, child) => sum + child.size, 0);
+  const nested = node.size - shownBytes;
+  const children = [...shown];
+  if (nested > 0) {
+    children.push({
+      name: "Inside",
+      path: dir,
+      size: nested,
+      files: Math.max(0, node.files - shown.reduce((sum, child) => sum + child.files, 0)),
+      kind: "other",
+      byType: [],
+      children: [],
+    });
+  }
+  node.children = children.sort((a, b) => b.size - a.size);
+  node.largest = biggest(directFiles);
+  node.loaded = false;
   return { node, types };
 }
 
@@ -293,7 +334,7 @@ async function scanDir(dir: string, name: string, depth: number, ctx: Accum, vis
   }
 
   const direct: TypeMap = {};
-  await statFiles(listed.files, ctx, direct);
+  const directFiles = await statFiles(listed.files, ctx, direct);
 
   const built = (
     await mapPool(listed.subs, 2, async (sub) => {
@@ -308,11 +349,66 @@ async function scanDir(dir: string, name: string, depth: number, ctx: Accum, vis
   mergeInto(types, direct);
   for (const child of built) mergeInto(types, child.types);
 
-  const children = prune(
-    [...built.map((child) => child.node), ...categoryNodes(dir, direct)],
-    dir,
+  const folderNodes = built.map((child) => child.node);
+  const children = assemble(folderNodes, fileNodes(directFiles), dir);
+  const node = makeDir(name, dir, types, children);
+  node.largest = biggest(directFiles);
+  node.loaded = folderNodes.length <= TOP_FOLDERS;
+  return { node, types };
+}
+
+/** Read one folder level so a click can keep going deeper than the first scan. */
+export async function listLevel(
+  input: string,
+  signal: AbortSignal,
+  onProgress: Accum["onProgress"],
+): Promise<UsageNode> {
+  const resolved = path.resolve(normalizeInput(input));
+  let rootStat;
+  try {
+    rootStat = await lstat(resolved);
+  } catch {
+    throw new Error(`Can't open ${resolved}`);
+  }
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error(`${resolved} is not a folder.`);
+  }
+
+  const ctx: Accum = {
+    files: 0,
+    bytes: 0,
+    denied: 0,
+    signal,
+    onProgress,
+    lastEmit: 0,
+  };
+  const listed = await listDir(resolved);
+  if (!listed) throw new Error(`Can't read ${resolved}`);
+
+  const direct: TypeMap = {};
+  const directFiles = await statFiles(listed.files, ctx, direct);
+  const built = await mapPool(listed.subs, 2, async (sub) => {
+    abortIfNeeded(ctx);
+    const measured = await measure(sub, path.basename(sub), ctx, new Set());
+    measured.node.children = [];
+    measured.node.loaded = false;
+    return measured;
+  });
+
+  const types: TypeMap = {};
+  mergeInto(types, direct);
+  for (const child of built) mergeInto(types, child.types);
+  const folders = built.map((child) => child.node).filter((node) => node.size > 0);
+  const node = makeDir(
+    path.basename(resolved) || resolved,
+    resolved,
+    types,
+    assemble(folders, fileNodes(directFiles), resolved, folders.length || 1, LEVEL_FILES),
   );
-  return { node: makeDir(name, dir, types, children), types };
+  node.largest = biggest(directFiles);
+  node.loaded = true;
+  onProgress({ files: ctx.files, bytes: ctx.bytes, denied: ctx.denied });
+  return node;
 }
 
 function normalizeInput(input: string): string {

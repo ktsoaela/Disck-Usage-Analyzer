@@ -354,6 +354,105 @@ button:focus-visible, input:focus-visible {
 
 .hint { margin-top: 16px; }
 
+.actions, .file-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.actions { margin: 0 0 12px; }
+
+.actions button, .file-buttons button, .dialog-actions button {
+  min-height: 32px;
+  font-size: 13px;
+}
+
+.danger {
+  border: 0;
+  background: var(--danger);
+  color: white;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.danger:disabled, .actions button:disabled, .file-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.file-heading {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.files li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-buttons { grid-column: 1 / -1; }
+
+.dialog-back {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.dialog {
+  width: min(480px, 100%);
+  background: #12151d;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.dialog h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.dialog-path {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 .where {
   position: absolute;
   top: 12px;

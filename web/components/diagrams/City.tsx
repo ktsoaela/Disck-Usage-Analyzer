@@ -3,7 +3,7 @@
 import { Billboard, Text } from "@react-three/drei";
 import { useMemo, useState } from "react";
 import { human, shortName } from "@/lib/format";
-import { cityBlocks } from "@/lib/layout";
+import { canEnter, cityBlocks } from "@/lib/layout";
 import type { UsageNode } from "@/lib/types";
 
 export function City({
@@ -48,7 +48,7 @@ function Tower({
   const height = 0.12 + Math.sqrt(block.node.size / rootSize) * 3.3;
   const x = block.x + block.w / 2 - 4;
   const z = block.z + block.d / 2 - 4;
-  const canOpen = block.node.kind === "dir" && block.node.children.length > 0;
+  const canOpen = canEnter(block.node);
   const showLabel = block.w > 0.7 && block.d > 0.45;
 
   return (

@@ -4,7 +4,7 @@ import { Billboard, Text } from "@react-three/drei";
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { human, shortName } from "@/lib/format";
-import { layoutSlices, type Slice } from "@/lib/layout";
+import { canEnter, layoutSlices, type Slice } from "@/lib/layout";
 import type { UsageNode } from "@/lib/types";
 import { RINGS, makeWedge, wedgePoint } from "./geometry";
 
@@ -107,7 +107,7 @@ function Wedge({
   const lift = (0.22 + slice.depth * 0.62) * explode;
   const offset = wedgePoint(radial, mid, lift);
   const labelAt = wedgePoint((ring.inner + ring.outer) / 2, mid, ring.height + 0.08);
-  const canOpen = slice.node.kind === "dir" && slice.node.children.length > 0;
+  const canOpen = canEnter(slice.node);
 
   return (
     <group position={offset}>

@@ -1,4 +1,4 @@
-import { categoryMeta } from "./categories";
+import { categoryMeta, categoryOf } from "./categories";
 import { treemap } from "./treemap";
 import type { UsageNode } from "./types";
 
@@ -42,8 +42,16 @@ export type ColumnRow = {
   share: number;
 };
 
+export function canEnter(node: UsageNode): boolean {
+  if (node.kind !== "dir") return false;
+  if (node.loaded === false) return true;
+  return node.children.length > 0;
+}
+
 export function colorFor(node: UsageNode, index: number, parent: string | null): string {
-  if (node.kind === "category" && node.category) return categoryMeta(node.category).color;
+  if ((node.kind === "category" || node.kind === "file") && (node.category || node.kind === "file")) {
+    return categoryMeta(node.category ?? categoryOf(node.name)).color;
+  }
   if (node.kind === "other") return "#6b7280";
   const base = FOLDER_PALETTE[index % FOLDER_PALETTE.length];
   return parent ? mixHex(parent, base, 0.62) : base;

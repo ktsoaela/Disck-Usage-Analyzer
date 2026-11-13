@@ -48,7 +48,7 @@ cargo run --release
 | Scan a folder on launch | `cargo run --release -- "D:\Games"` |
 | Built program | `target/release/disk-usage-analyzer.exe` |
 | Install the 3D studio | `cd web` then `npm install` |
-| Open the 3D diagrams | `npm run dev` from `web/` → http://localhost:3000 |
+| Open the 3D studio in a Rust window | `cargo run --bin studio` |
 | Installed Windows app | Start menu **Disk Usage Analyzer 3D**, or `web\launch.cmd` → http://127.0.0.1:3847 |
 
 Run the desktop app as administrator when you need folders a normal user cannot read.
@@ -78,7 +78,7 @@ Run the desktop app as administrator when you need folders a normal user cannot 
 | City | Blocks whose footprint and height follow the bytes. |
 | File types | Columns for video, audio, images, documents, code, programs, archives, and other files. |
 
-The drawing keeps two levels of folders, then groups deeper files by type. Byte totals still include everything underneath. Click a folder to open it. Deleting stays in the desktop app.
+The drawing lists the files inside the folder you open, and the folders next to them. Byte totals still include everything underneath. Click a folder to see its files. `Del` moves the hovered file or folder to the Recycle Bin, and `Shift+Del` deletes it permanently. A folder that is an installed program can start that program's uninstaller. `cargo run --bin studio` opens this studio in a Rust window.
 
 ---
 
