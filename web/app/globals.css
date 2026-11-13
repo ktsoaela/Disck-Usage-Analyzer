@@ -143,12 +143,29 @@ button:focus-visible, input:focus-visible {
 }
 
 .scan label {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   margin-bottom: 6px;
   color: var(--muted);
   font-size: 12px;
+  min-width: 0;
+}
+
+.scan label span:first-child {
+  flex: none;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.cwd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  letter-spacing: 0;
 }
 
 .scan-row { display: flex; gap: 8px; }
@@ -336,6 +353,47 @@ button:focus-visible, input:focus-visible {
 }
 
 .hint { margin-top: 16px; }
+
+.where {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.where .ghost {
+  min-height: 36px;
+  padding: 0 14px;
+  background: rgba(7, 8, 11, 0.82);
+}
+
+.where .ghost:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.pwd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 13px;
+}
+
+.where .pwd {
+  flex: 1;
+  padding: 8px 12px;
+  color: var(--ink);
+  background: rgba(7, 8, 11, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
 
 .stage {
   position: relative;

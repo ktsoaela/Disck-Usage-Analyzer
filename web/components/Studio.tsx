@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { human, percent, shortName } from "@/lib/format";
 import { colorFor, columnRows } from "@/lib/layout";
 import { sampleRoot } from "@/lib/sample";
@@ -44,20 +44,60 @@ function freshSample(): Model {
   return { root, path: root.path, files: root.files, denied: 0, sample: true };
 }
 
+type Nav = { trail: UsageNode[][]; cursor: number };
+
+function rootNav(): Nav {
+  return { trail: [[]], cursor: 0 };
+}
+
+function sameTrail(a: UsageNode[], b: UsageNode[]) {
+  if (a.length !== b.length) return false;
+  return a.every((node, index) => node.path === b[index]?.path && node.name === b[index]?.name);
+}
+
+function visit(nav: Nav, target: UsageNode[]): Nav {
+  for (let index = nav.cursor; index >= 0; index -= 1) {
+    if (sameTrail(nav.trail[index] ?? [], target)) return { ...nav, cursor: index };
+  }
+  const trail = nav.trail.slice(0, nav.cursor + 1);
+  trail.push(target);
+  return { trail, cursor: trail.length - 1 };
+}
+
+function step(nav: Nav, delta: number): Nav {
+  const cursor = Math.min(Math.max(nav.cursor + delta, 0), nav.trail.length - 1);
+  return cursor === nav.cursor ? nav : { ...nav, cursor };
+}
+
+function upOne(nav: Nav): Nav {
+  const stack = nav.trail[nav.cursor] ?? [];
+  if (stack.length === 0) return nav;
+  return visit(nav, stack.slice(0, -1));
+}
+
 export default function Studio() {
   const [model, setModel] = useState<Model>(freshSample);
-  const [stack, setStack] = useState<UsageNode[]>([]);
+  const [nav, setNav] = useState<Nav>(rootNav);
   const [view, setView] = useState<DiagramView>("explosion");
   const [explode, setExplode] = useState(0.62);
   const [hover, setHover] = useState<UsageNode | null>(null);
-  const [path, setPath] = useState("");
+  const [path, setPath] = useState(() => sampleRoot().path);
+  const [shownPath, setShownPath] = useState(() => sampleRoot().path);
+  const folderFocused = useRef(false);
   const [drives, setDrives] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState<{ files: number; bytes: number; denied: number } | null>(null);
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
+  const stack = nav.trail[nav.cursor] ?? [];
   const current = stack.at(-1) ?? model.root;
+  if (!folderFocused.current && current.path !== shownPath) {
+    setShownPath(current.path);
+    setPath(current.path);
+  }
+  const canBack = nav.cursor > 0;
+  const canForward = nav.cursor < nav.trail.length - 1;
   const viewMeta = VIEWS.find((item) => item.id === view) ?? VIEWS[0];
 
   useEffect(() => {
@@ -75,9 +115,21 @@ export default function Studio() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      setStack((items) => items.slice(0, -1));
+      if (event.altKey && event.key === "ArrowLeft") {
+        event.preventDefault();
+        setNav((currentNav) => step(currentNav, -1));
+        return;
+      }
+      if (event.altKey && event.key === "ArrowRight") {
+        event.preventDefault();
+        setNav((currentNav) => step(currentNav, 1));
+        return;
+      }
+      if (event.key === "Escape" || event.key === "Backspace") {
+        event.preventDefault();
+        setNav(upOne);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -126,7 +178,7 @@ export default function Studio() {
             elapsedMs: result.elapsedMs,
             sample: false,
           });
-          setStack([]);
+          setNav(rootNav());
           setPath(result.path);
         } else if (message.type === "error" && message.message !== "The scan was cancelled.") {
           setError(message.message);
@@ -145,7 +197,23 @@ export default function Studio() {
 
   function openNode(node: UsageNode) {
     if (node.kind !== "dir" || node.children.length === 0) return;
-    setStack((items) => [...items, node]);
+    setNav((currentNav) => {
+      const base = currentNav.trail[currentNav.cursor] ?? [];
+      const target = [...base, node];
+      const ahead = currentNav.trail[currentNav.cursor + 1];
+      if (ahead && sameTrail(ahead, target)) return { ...currentNav, cursor: currentNav.cursor + 1 };
+      return visit(currentNav, target);
+    });
+  }
+
+  function onHistoryClick(event: MouseEvent) {
+    if (event.button === 3) {
+      event.preventDefault();
+      setNav((currentNav) => step(currentNav, -1));
+    } else if (event.button === 4) {
+      event.preventDefault();
+      setNav((currentNav) => step(currentNav, 1));
+    }
   }
 
   const crumbs = [model.root, ...stack];
@@ -197,13 +265,22 @@ export default function Studio() {
               void scan(path);
             }}
           >
-            <label htmlFor="folder">Folder</label>
+            <label htmlFor="folder" title={current.path}>
+              <span>Folder</span>
+              <span className="cwd">{current.path}</span>
+            </label>
             <div className="scan-row">
               <input
                 id="folder"
                 value={path}
                 placeholder="C:\ or D:\Games"
                 spellCheck={false}
+                onFocus={() => {
+                  folderFocused.current = true;
+                }}
+                onBlur={() => {
+                  folderFocused.current = false;
+                }}
                 onChange={(event) => setPath(event.target.value)}
               />
               {scanning ? (
@@ -253,7 +330,7 @@ export default function Studio() {
               <button
                 key={`${node.path}-${index}`}
                 type="button"
-                onClick={() => setStack(stack.slice(0, index))}
+                onClick={() => setNav((currentNav) => visit(currentNav, stack.slice(0, index)))}
                 title={node.path}
               >
                 {shortName(index === 0 ? node.path : node.name, 18)}
@@ -274,11 +351,29 @@ export default function Studio() {
 
           <p className="hint">
             Two levels of folders are drawn. Deeper files are grouped by type, and the totals still include them.
-            Delete stays in the desktop app. Esc steps back.
+            Back and Forward move through folders you opened. Esc steps up to the parent. Delete stays in the desktop app.
           </p>
         </aside>
 
-        <section className="stage" aria-label={`${viewMeta.label} diagram of ${current.name}, ${human(current.size)}`}>
+        <section
+          className="stage"
+          aria-label={`${viewMeta.label} diagram of ${current.path}, ${human(current.size)}`}
+          onMouseDown={(event) => {
+            if (event.button === 3 || event.button === 4) event.preventDefault();
+          }}
+          onAuxClick={onHistoryClick}
+        >
+          <div className="where">
+            <button type="button" className="ghost" onClick={() => setNav((currentNav) => step(currentNav, -1))} disabled={!canBack}>
+              Back
+            </button>
+            <button type="button" className="ghost" onClick={() => setNav((currentNav) => step(currentNav, 1))} disabled={!canForward}>
+              Forward
+            </button>
+            <p className="pwd" title={current.path}>
+              {current.path}
+            </p>
+          </div>
           <Scene root={current} view={view} explode={explode} onHover={setHover} onSelect={openNode} />
           <p className="caption">{viewMeta.caption}</p>
         </section>
