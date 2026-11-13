@@ -131,6 +131,7 @@
       <a class="brand" href="#top"><img src="logo.svg" alt="" /> Disk Usage Analyzer</a>
       <nav class="nav-links">
         <a href="#find">Find</a>
+        <a href="#studio">3D</a>
         <a href="#clean">Clean up</a>
         <a href="#run">Run it</a>
         <a href="guide.md">Guide</a>
@@ -190,6 +191,22 @@
       </div>
     </section>
 
+    <section id="studio">
+      <div class="wrap">
+        <div class="center">
+          <h2>See the disk in 3D</h2>
+          <p class="lead">A Next.js studio on your machine draws the scan as an explosion diagram, nested rings, a block city, and file-type columns.</p>
+        </div>
+        <div class="tools">
+          <article class="tool"><strong>Explosion</strong><span>The folder splits into pieces. A slider pulls the pieces apart, and leader lines run back to the hub.</span></article>
+          <article class="tool"><strong>Rings</strong><span>Each ring is the inside of the ring it sits on. Click a folder to open it.</span></article>
+          <article class="tool"><strong>City</strong><span>Footprint and height follow the bytes, with smaller blocks for what is inside.</span></article>
+          <article class="tool"><strong>File types</strong><span>Columns for video, images, programs, archives, and the other kinds of files.</span></article>
+        </div>
+        <p class="fine">From the <code>web</code> folder, run <code>npm install</code> and <code>npm run dev</code>, then open http://localhost:3000. The Start menu item Disk Usage Analyzer 3D, or <code>web\launch.cmd</code>, opens the built app at http://127.0.0.1:3847. Deleting stays in the desktop app.</p>
+      </div>
+    </section>
+
     <section id="clean">
       <div class="wrap">
         <div class="center">
@@ -234,12 +251,13 @@ target\release\disk-usage-analyzer.exe "D:\"</pre>
     <div class="wrap foot">
       <div>
         <a class="brand" href="#top"><img src="logo.svg" alt="" /> Disk Usage Analyzer</a>
-        <p>A Rust disk usage analyzer with a treemap, and deletes built in.</p>
+        <p>A Rust disk usage analyzer with a treemap, deletes built in, and a 3D studio for the same scan.</p>
       </div>
       <div>
         <h3>On this page</h3>
         <ul>
           <li><a href="#find">Find</a></li>
+          <li><a href="#studio">3D</a></li>
           <li><a href="#clean">Clean up</a></li>
           <li><a href="#run">Run it</a></li>
         </ul>

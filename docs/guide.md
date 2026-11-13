@@ -42,3 +42,24 @@ Safety rules: the scanned root folder can't be deleted, and symlinks/junctions a
 cargo build --release
 target/release/disk-usage-analyzer.exe [folder]
 ```
+
+## 6. 3D diagrams
+
+The studio in `web/` draws the same kind of scan as an explosion diagram and three other views. It runs locally and reads a folder on this computer. Deleting stays in the desktop app.
+
+```sh
+cd web
+npm install
+npm run dev
+```
+
+Open http://localhost:3000 while `npm run dev` is running. The Start menu item **Disk Usage Analyzer 3D** (or `web\launch.cmd`) opens the built app at http://127.0.0.1:3847. Pick a drive or type a path, then scan.
+
+| View | What you see |
+| --- | --- |
+| Explosion | The folder splits into pieces. The slider pulls them apart, with leader lines back to the hub. |
+| Rings | Nested shares. The outer ring is the inside of the ring it sits on. |
+| City | Blocks whose footprint and height follow the bytes. |
+| File types | A column for video, audio, images, documents, code, programs, archives, and everything else. |
+
+Click a folder piece to open it. The path above the list steps back out, and `Esc` does the same. The drawing keeps two levels of folders, then groups deeper files by type. Sizes still include every file underneath. Symlinks and junctions stay put, so a target is counted once. Folders Windows will not open show up in the scan line as folders that could not be read.
