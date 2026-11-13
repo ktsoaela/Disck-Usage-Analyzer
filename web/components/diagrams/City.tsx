@@ -1,7 +1,7 @@
 "use client";
 
 import { Billboard, Text } from "@react-three/drei";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { human, shortName } from "@/lib/format";
 import { canEnter, cityBlocks } from "@/lib/layout";
 import type { UsageNode } from "@/lib/types";
@@ -45,6 +45,23 @@ function Tower({
   onSelect: (node: UsageNode) => void;
 }) {
   const [hot, setHot] = useState(false);
+  const clickTimer = useRef<number | null>(null);
+  function open(event: { stopPropagation: () => void; detail?: number; nativeEvent?: Event }, doubled = false) {
+    event.stopPropagation();
+    if (!canOpen) return;
+    const count = (event.nativeEvent as MouseEvent | undefined)?.detail ?? event.detail ?? 1;
+    if (doubled || count > 1) {
+      if (clickTimer.current != null) window.clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      if (doubled) onSelect(block.node);
+      return;
+    }
+    if (clickTimer.current != null) window.clearTimeout(clickTimer.current);
+    clickTimer.current = window.setTimeout(() => {
+      clickTimer.current = null;
+      onSelect(block.node);
+    }, 220);
+  }
   const height = 0.12 + Math.sqrt(block.node.size / rootSize) * 3.3;
   const x = block.x + block.w / 2 - 4;
   const z = block.z + block.d / 2 - 4;
@@ -63,10 +80,8 @@ function Tower({
           setHot(false);
           onHover(null);
         }}
-        onClick={(event) => {
-          event.stopPropagation();
-          if (canOpen) onSelect(block.node);
-        }}
+        onClick={(event) => open(event)}
+        onDoubleClick={(event) => open(event, true)}
       >
         <boxGeometry args={[block.w, height, block.d]} />
         <meshStandardMaterial
@@ -79,10 +94,29 @@ function Tower({
       </mesh>
       {showLabel && (
         <Billboard position={[0, height / 2 + 0.08, 0]}>
-          <Text fontSize={0.14} color="#f5f7fb" anchorX="center" anchorY="bottom" outlineWidth={0.008} outlineColor="#07080b">
+          <Text
+            fontSize={0.14}
+            color="#f5f7fb"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.008}
+            outlineColor="#07080b"
+            onClick={(event) => open(event)}
+            onDoubleClick={(event) => open(event, true)}
+          >
             {shortName(block.node.name, 18)}
           </Text>
-          <Text position={[0, -0.16, 0]} fontSize={0.11} color="#f0c75a" anchorX="center" anchorY="top" outlineWidth={0.007} outlineColor="#07080b">
+          <Text
+            position={[0, -0.16, 0]}
+            fontSize={0.11}
+            color="#f0c75a"
+            anchorX="center"
+            anchorY="top"
+            outlineWidth={0.007}
+            outlineColor="#07080b"
+            onClick={(event) => open(event)}
+            onDoubleClick={(event) => open(event, true)}
+          >
             {human(block.node.size)}
           </Text>
         </Billboard>

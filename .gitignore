@@ -2,3 +2,5 @@
 *.pdb
 web/node_modules
 web/.next
+web/studio-bundle
+web/release

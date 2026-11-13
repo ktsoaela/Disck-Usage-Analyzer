@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Disk Usage Analyzer — see what fills your drive</title>
-  <meta name="description" content="Disk Usage Analyzer is a fast Rust app that shows what is using your disk space as a tree and a treemap, and lets you delete files and folders right where you find them." />
+  <meta name="description" content="Disk Usage Analyzer 3D is a Windows app that shows what fills a drive as an explosion diagram, rings, a city, and file-type columns, and lets you delete files where you find them." />
   <link rel="icon" href="logo.svg" type="image/svg+xml" />
   <style>
     :root {
@@ -84,6 +84,133 @@
     .tm .p { background-color: var(--blue); }
     .tm .d { background-color: var(--green); }
 
+    .window {
+      margin: 48px auto 0;
+      max-width: 980px;
+      text-align: left;
+      background: #07080b;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .5);
+    }
+    .chrome {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 64px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 8, 11, .92);
+    }
+    .chrome .brand { font-size: 15px; }
+    .chrome .brand small {
+      display: block;
+      margin-top: 1px;
+      color: var(--accent);
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .mark {
+      width: 34px; height: 34px; flex: none; border-radius: 8px;
+      background:
+        linear-gradient(#e05757, #e05757) 4px 4px / 14px 26px no-repeat,
+        linear-gradient(#e8c547, #e8c547) 20px 4px / 10px 12px no-repeat,
+        linear-gradient(#4fbf8a, #4fbf8a) 20px 18px / 10px 7px no-repeat,
+        linear-gradient(#4aa8d8, #4aa8d8) 20px 27px / 4px 5px no-repeat,
+        linear-gradient(#9b6fe0, #9b6fe0) 26px 27px / 4px 5px no-repeat,
+        #1d2230;
+    }
+    .pills {
+      display: flex; gap: 4px; padding: 4px;
+      border: 1px solid var(--line); border-radius: 999px; background: #0d1016;
+    }
+    .pills span {
+      border-radius: 999px; min-height: 32px; padding: 7px 12px;
+      color: var(--muted); font-size: 13px;
+    }
+    .pills .on { background: var(--accent); color: #14110a; font-weight: 700; }
+    .pull { margin-left: auto; color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 8px; }
+    .pull i {
+      display: block; width: 92px; height: 4px; border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent) 62%, #2a2f3c 62%);
+    }
+    .app { display: grid; grid-template-columns: 250px 1fr; min-height: 420px; }
+    .rail { background: #0c0e13; border-right: 1px solid var(--line); padding: 14px; }
+    .rail .label { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .rail .label b { color: var(--accent); font-weight: 600; letter-spacing: 0; font-family: Consolas, monospace; text-transform: none; }
+    .pathbox, .pwd {
+      margin-top: 8px; background: #07080b; border: 1px solid var(--line);
+      border-radius: 999px; padding: 8px 12px;
+      font: 12px Consolas, monospace; color: var(--ink);
+    }
+    .scanline { display: flex; gap: 8px; margin-top: 8px; }
+    .scanline .pathbox { flex: 1; margin-top: 0; border-radius: 10px; }
+    .mini {
+      display: inline-flex; align-items: center; border-radius: 999px;
+      background: var(--accent); color: #14110a; font-weight: 700; font-size: 13px; padding: 0 14px;
+    }
+    .drives { display: flex; gap: 6px; margin-top: 10px; }
+    .drives span {
+      border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px;
+      font: 12px Consolas, monospace; background: #12151d;
+    }
+    .note { margin: 12px 0 0; color: var(--accent); font-size: 12px; }
+    .total { margin: 16px 0 8px; font-size: 28px; letter-spacing: -.04em; font-weight: 750; }
+    .total small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 400; letter-spacing: 0; }
+    .item { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+    .item i { width: 10px; height: 10px; border-radius: 2px; }
+    .item em { display: block; height: 5px; margin-top: 4px; border-radius: 99px; background: #232833; }
+    .item em b { display: block; height: 100%; background: var(--green); }
+    .item .meta { text-align: right; font-variant-numeric: tabular-nums; }
+    .item .meta small { display: block; color: var(--muted); font-size: 11px; }
+    .stage {
+      position: relative; min-height: 420px;
+      background:
+        linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px),
+        radial-gradient(420px 220px at 70% 20%, rgba(240,199,90,.08), transparent 60%),
+        #07080b;
+      background-size: 28px 28px, 28px 28px, auto, auto;
+    }
+    .disk { position: absolute; left: 50%; top: 54%; width: 340px; height: 340px; transform: translate(-50%, -50%); }
+    .ring, .inner, .hub { position: absolute; border-radius: 50%; }
+    .ring {
+      inset: 0;
+      background: conic-gradient(#e05757 0 34%, #e39a3a 34% 52%, #4fbf8a 52% 70%, #e8c547 70% 100%);
+      -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%);
+      mask: radial-gradient(circle, transparent 62%, #000 63%);
+    }
+    .inner {
+      inset: 58px;
+      background: conic-gradient(#d24b4b 0 28%, #5aa7d6 28% 46%, #9b6fe0 46% 68%, #6b7280 68% 82%, #4aa8d8 82% 100%);
+      -webkit-mask: radial-gradient(circle, transparent 58%, #000 59%);
+      mask: radial-gradient(circle, transparent 58%, #000 59%);
+    }
+    .hub { width: 46px; height: 46px; left: 147px; top: 147px; background: var(--accent); box-shadow: 0 0 24px rgba(240,199,90,.45); }
+    .tag {
+      position: absolute; color: #f5f7fb; font-size: 13px; font-weight: 700;
+      text-shadow: 0 1px 2px #07080b;
+    }
+    .tag span { display: block; color: var(--accent); font: 11px Consolas, monospace; font-weight: 600; }
+    .where {
+      position: absolute; top: 12px; left: 12px; right: 12px;
+      display: flex; gap: 8px; align-items: center;
+    }
+    .where .chip, .pwd {
+      background: rgba(7, 8, 11, .82); border: 1px solid var(--line); border-radius: 999px;
+    }
+    .where .chip { padding: 7px 12px; color: var(--muted); font-size: 13px; }
+    .where .pwd { flex: 1; margin: 0; }
+    .caption {
+      position: absolute; left: 12px; bottom: 12px; max-width: 280px; margin: 0;
+      color: var(--muted); font-size: 12px;
+      background: rgba(7, 8, 11, .72); border: 1px solid var(--line);
+      border-radius: 12px; padding: 8px 10px;
+    }
+
     section { padding: 72px 0; }
     section.wash { background: #0d1016; }
     h2 { margin: 0 0 10px; font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.035em; line-height: 1.05; }
@@ -119,9 +246,13 @@
       .nav-links { display: none; }
       .nav .end .btn { padding: 0 16px; }
       h1 { font-size: 40px; }
-      .shot .body { grid-template-columns: 1fr; }
+      .shot .body, .app { grid-template-columns: 1fr; }
       .shot .rows { border-right: 0; border-bottom: 1px solid var(--line); }
+      .rail { border-right: 0; border-bottom: 1px solid var(--line); }
       .tm { min-height: 220px; }
+      .stage { min-height: 360px; }
+      .pull { display: none; }
+      .pills span:not(.on) { display: none; }
     }
   </style>
 </head>
@@ -136,38 +267,53 @@
         <a href="#run">Run it</a>
         <a href="guide.md">Guide</a>
       </nav>
-      <div class="end"><a class="btn fill" href="#run">Get it</a></div>
+      <div class="end"><a class="btn fill" href="https://github.com/ktsoaela/Disck-Usage-Analyzer/releases">Download</a></div>
     </div>
   </header>
 
   <main id="top">
     <div class="hero">
       <div class="wrap">
-        <p class="kicker">Disk Usage Analyzer · written in Rust</p>
-        <h1>See what fills your drive.<span class="accent">Delete it right there.</span></h1>
-        <p class="sub">Scan a drive or folder in seconds, spot the big stuff in a tree and a treemap, then send it to the Recycle Bin without opening another window.</p>
+        <p class="kicker">Disk Usage Analyzer · 3D studio</p>
+        <h1>See what fills your drive.<span class="accent">Open it in 3D.</span></h1>
+        <p class="sub">The desktop window is the 3D studio. Scan a folder, then double-click a name in the diagram to go further in. Delete stays in the same window.</p>
         <div class="hero-actions">
-          <a class="btn fill" href="#run">Run it</a>
-          <a class="btn line" href="guide.md">Read the guide</a>
+          <a class="btn fill" href="https://github.com/ktsoaela/Disck-Usage-Analyzer/releases">Download</a>
+          <a class="btn line" href="#run">How it is built</a>
         </div>
 
-        <div class="shot" aria-label="Picture of the app: a size-sorted folder list next to a treemap">
-          <div class="titlebar"><i></i><i></i><i></i><span>Disk Usage Analyzer — D:\</span></div>
-          <div class="body">
-            <div class="rows">
-              <div class="row"><span class="n">📁 D:\</span><span class="b"><em style="width:100%"></em></span><span class="s">412 GB</span></div>
-              <div class="row sel"><span class="n">&nbsp;&nbsp;📁 Videos</span><span class="b"><em style="width:46%;background:var(--accent)"></em></span><span class="s">190 GB</span></div>
-              <div class="row"><span class="n">&nbsp;&nbsp;📁 Games</span><span class="b"><em style="width:27%"></em></span><span class="s">111 GB</span></div>
-              <div class="row"><span class="n">&nbsp;&nbsp;📁 Photos</span><span class="b"><em style="width:14%"></em></span><span class="s">58 GB</span></div>
-              <div class="row"><span class="n">&nbsp;&nbsp;📁 Utilities</span><span class="b"><em style="width:8%"></em></span><span class="s">33 GB</span></div>
-              <div class="row"><span class="n">&nbsp;&nbsp;📁 Documents</span><span class="b"><em style="width:5%"></em></span><span class="s">20 GB</span></div>
-            </div>
-            <div class="tm">
-              <div class="v">Videos</div>
-              <div class="g">Games</div>
-              <div class="i">Photos</div>
-              <div class="p">Utilities</div>
-              <div class="d">Docs</div>
+        <div class="window" aria-label="The Disk Usage Analyzer 3D window, open on C:\">
+          <div class="chrome">
+            <span class="mark" aria-hidden="true"></span>
+            <div class="brand">Disk Usage Analyzer<small>3D studio</small></div>
+            <div class="pills"><span class="on">Explosion</span><span>Rings</span><span>City</span><span>File types</span></div>
+            <div class="pull">Pull apart <i></i></div>
+          </div>
+          <div class="app">
+            <aside class="rail">
+              <div class="label">Folder <b>C:\</b></div>
+              <div class="scanline"><div class="pathbox">C:\</div><span class="mini">Scan</span></div>
+              <div class="drives"><span>C:\</span><span>D:\</span></div>
+              <p class="note">Sample disk. Open a folder to read it, or scan a path.</p>
+              <div class="total">462 GB<small>110,158 files</small></div>
+              <div class="item"><i style="background:#e05757"></i><div>Users<em><b style="width:49%"></b></em></div><div class="meta">49%<small>225 GB</small></div></div>
+              <div class="item"><i style="background:#e8c547"></i><div>Program Files<em><b style="width:20%;background:#e8c547"></b></em></div><div class="meta">20%<small>92 GB</small></div></div>
+              <div class="item"><i style="background:#4fbf8a"></i><div>Windows<em><b style="width:14%;background:#4fbf8a"></b></em></div><div class="meta">14%<small>66 GB</small></div></div>
+              <div class="item"><i style="background:#e39a3a"></i><div>Games<em><b style="width:12%;background:#e39a3a"></b></em></div><div class="meta">12%<small>55 GB</small></div></div>
+            </aside>
+            <div class="stage">
+              <div class="where"><span class="chip">Back</span><span class="chip">Forward</span><div class="pwd">C:\</div></div>
+              <div class="disk" aria-hidden="true">
+                <div class="ring"></div>
+                <div class="inner"></div>
+                <div class="hub"></div>
+                <div class="tag" style="left:210px;top:48px">Users<span>225 GB</span></div>
+                <div class="tag" style="left:108px;top:214px">Videos<span>90 GB</span></div>
+                <div class="tag" style="left:214px;top:196px">Games<span>64 GB</span></div>
+                <div class="tag" style="left:18px;top:188px">Windows<span>66 GB</span></div>
+                <div class="tag" style="left:8px;top:36px">Program Files<span>92 GB</span></div>
+              </div>
+              <p class="caption">Double-click a name to open that folder. Type a path above and press Enter.</p>
             </div>
           </div>
         </div>
@@ -199,11 +345,11 @@
         </div>
         <div class="tools">
           <article class="tool"><strong>Explosion</strong><span>The folder splits into pieces. A slider pulls the pieces apart, and leader lines run back to the hub.</span></article>
-          <article class="tool"><strong>Rings</strong><span>Each ring is the inside of the ring it sits on. Click a folder to open it.</span></article>
+          <article class="tool"><strong>Rings</strong><span>Each ring is the inside of the ring it sits on. Double-click a folder to open it.</span></article>
           <article class="tool"><strong>City</strong><span>Footprint and height follow the bytes, with smaller blocks for what is inside.</span></article>
           <article class="tool"><strong>File types</strong><span>Columns for video, images, programs, archives, and the other kinds of files.</span></article>
         </div>
-        <p class="fine">From the <code>web</code> folder, run <code>npm install</code> and <code>npm run dev</code>, then open http://localhost:3000. <code>cargo run --bin studio</code> opens that studio in a Rust window. The Start menu item Disk Usage Analyzer 3D, or <code>web\launch.cmd</code>, opens the built app at http://127.0.0.1:3847. Folders and files can go to the Recycle Bin or be deleted permanently. Uninstall starts a program's own uninstaller.</p>
+        <p class="fine">Double-click a name in the diagram to open the next folder. The path on the canvas accepts a pasted folder. <kbd>Del</kbd> moves the hovered item to the Recycle Bin, and <kbd>Shift</kbd>+<kbd>Del</kbd> deletes it permanently. Uninstall starts that program's own uninstaller. <code>web\launch.cmd</code> opens the same window while you are working on it.</p>
       </div>
     </section>
 
@@ -224,25 +370,23 @@
     <section id="run" class="wash">
       <div class="wrap center">
         <h2>Run it</h2>
-        <p class="lead">You need Rust to build it. On Windows you also need the MSVC C++ build tools. Everything else is in this repository.</p>
+        <p class="lead">GitHub builds the Windows package on every update to main. A version tag also publishes both programs on the Releases page.</p>
         <div class="run">
           <article class="card">
-            <div class="os">Build</div>
-            <h3>From source</h3>
-            <p>Clone the repository and build an optimized program.</p>
-            <pre>git clone https://github.com/ktsoaela/Disck-Usage-Analyzer
-cd Disck-Usage-Analyzer
-cargo build --release</pre>
+            <div class="os">Windows</div>
+            <h3>Disk Usage Analyzer 3D</h3>
+            <p>The installer and the portable program are built with Electron. Opening either one starts the studio inside the window. Node.js is not required.</p>
+            <pre>DiskUsageAnalyzer3D-Setup-0.1.0.exe</pre>
           </article>
           <article class="card">
             <div class="os">Windows</div>
-            <h3>Start scanning</h3>
-            <p>Open the app, or give it a folder to scan straight away. Run it as administrator to include system folders.</p>
-            <pre>target\release\disk-usage-analyzer.exe
-target\release\disk-usage-analyzer.exe "D:\"</pre>
+            <h3>Desktop treemap</h3>
+            <p>The same GitHub build produces the Rust program. Pass a folder to scan it on launch. Run it as administrator to include system folders.</p>
+            <pre>disk-usage-analyzer.exe
+disk-usage-analyzer.exe "D:\"</pre>
           </article>
         </div>
-        <p class="fine">The guide covers every view, menu item and key. <a href="guide.md">Guide</a> · <a href="https://github.com/ktsoaela/Disck-Usage-Analyzer">Source</a></p>
+        <p class="fine"><a href="https://github.com/ktsoaela/Disck-Usage-Analyzer/releases">Releases</a> · <a href="https://github.com/ktsoaela/Disck-Usage-Analyzer/actions/workflows/package.yml">Package builds</a> · <a href="guide.md">Guide</a></p>
       </div>
     </section>
   </main>
@@ -251,7 +395,7 @@ target\release\disk-usage-analyzer.exe "D:\"</pre>
     <div class="wrap foot">
       <div>
         <a class="brand" href="#top"><img src="logo.svg" alt="" /> Disk Usage Analyzer</a>
-        <p>A Rust disk usage analyzer with a treemap, deletes built in, and a 3D studio for the same scan.</p>
+        <p>A Windows app that draws a drive in 3D and removes files from the same window. GitHub builds the package.</p>
       </div>
       <div>
         <h3>On this page</h3>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Billboard, Text } from "@react-three/drei";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { human, shortName } from "@/lib/format";
 import { canEnter, layoutSlices, type Slice } from "@/lib/layout";
@@ -102,6 +102,23 @@ function Wedge({
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   const [hot, setHot] = useState(false);
+  const clickTimer = useRef<number | null>(null);
+  function open(event: { stopPropagation: () => void; detail?: number; nativeEvent?: Event }, doubled = false) {
+    event.stopPropagation();
+    if (!canOpen) return;
+    const count = (event.nativeEvent as MouseEvent | undefined)?.detail ?? event.detail ?? 1;
+    if (doubled || count > 1) {
+      if (clickTimer.current != null) window.clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      if (doubled) onSelect(slice.node);
+      return;
+    }
+    if (clickTimer.current != null) window.clearTimeout(clickTimer.current);
+    clickTimer.current = window.setTimeout(() => {
+      clickTimer.current = null;
+      onSelect(slice.node);
+    }, 220);
+  }
   const mid = (slice.a0 + slice.a1) / 2;
   const radial = (0.72 + slice.depth * 1.05) * explode;
   const lift = (0.22 + slice.depth * 0.62) * explode;
@@ -122,10 +139,8 @@ function Wedge({
           setHot(false);
           onHover(null);
         }}
-        onClick={(event) => {
-          event.stopPropagation();
-          if (canOpen) onSelect(slice.node);
-        }}
+        onClick={(event) => open(event)}
+        onDoubleClick={(event) => open(event, true)}
       >
         <meshStandardMaterial
           color={slice.color}
@@ -138,10 +153,29 @@ function Wedge({
       </mesh>
       {showLabel && (
         <Billboard position={labelAt}>
-          <Text fontSize={0.13} color="#f5f7fb" anchorX="center" anchorY="bottom" outlineWidth={0.008} outlineColor="#07080b">
+          <Text
+            fontSize={0.13}
+            color="#f5f7fb"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.008}
+            outlineColor="#07080b"
+            onClick={(event) => open(event)}
+            onDoubleClick={(event) => open(event, true)}
+          >
             {shortName(slice.node.name, 22)}
           </Text>
-          <Text position={[0, -0.16, 0]} fontSize={0.11} color="#f0c75a" anchorX="center" anchorY="top" outlineWidth={0.007} outlineColor="#07080b">
+          <Text
+            position={[0, -0.16, 0]}
+            fontSize={0.11}
+            color="#f0c75a"
+            anchorX="center"
+            anchorY="top"
+            outlineWidth={0.007}
+            outlineColor="#07080b"
+            onClick={(event) => open(event)}
+            onDoubleClick={(event) => open(event, true)}
+          >
             {human(slice.node.size)}
           </Text>
         </Billboard>

@@ -107,6 +107,9 @@ export default function Studio() {
   const [path, setPath] = useState(() => sampleRoot().path);
   const [shownPath, setShownPath] = useState(() => sampleRoot().path);
   const folderFocused = useRef(false);
+  const pwdFocused = useRef(false);
+  const pwdCommit = useRef(false);
+  const pwdRef = useRef<HTMLInputElement>(null);
   const [drives, setDrives] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState<{ files: number; bytes: number; denied: number } | null>(null);
@@ -207,6 +210,12 @@ export default function Studio() {
   useEffect(() => {
     setHover(null);
   }, [current, view]);
+
+  useEffect(() => {
+    const field = pwdRef.current;
+    if (!field || document.activeElement === field) return;
+    field.scrollLeft = field.scrollWidth;
+  }, [current.path]);
 
   async function scan(target: string) {
     const trimmed = target.trim();
@@ -326,10 +335,29 @@ export default function Studio() {
       });
       return;
     }
-    void loadFolder(node);
+    void loadFolder(node.path);
   }
 
-  async function loadFolder(node: UsageNode) {
+  function goToPath(target: string) {
+    const trimmed = target.trim();
+    if (!trimmed || scanning) return;
+    if (samePath(trimmed, current.path) && !model.sample) return;
+    if (!model.sample) {
+      const found = findDir(model.root, trimmed);
+      if (found && found.loaded !== false) {
+        const next = ancestors(model.root, found.path);
+        if (next) {
+          setNav((currentNav) => visit(currentNav, next));
+          setPath(found.path);
+          setShownPath(found.path);
+          return;
+        }
+      }
+    }
+    void loadFolder(trimmed);
+  }
+
+  async function loadFolder(folderPath: string) {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -342,7 +370,7 @@ export default function Studio() {
       const response = await fetch("/api/folder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: node.path }),
+        body: JSON.stringify({ path: folderPath }),
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -396,6 +424,8 @@ export default function Studio() {
     } catch (cause) {
       if (controller.signal.aborted) return;
       setError(cause instanceof Error ? cause.message : "Could not read that folder.");
+      setPath(current.path);
+      setShownPath(current.path);
     } finally {
       if (abortRef.current === controller) {
         setScanning(false);
@@ -590,8 +620,8 @@ export default function Studio() {
           <Breakdown current={current} view={view} hover={hover} onOpen={openNode} onHover={setHover} />
 
           <p className="hint">
-            Two levels of the open folder are drawn. Click a folder to open the next level, as deep as the path goes. Files in that folder are listed by name.
-            Back and Forward move through folders you opened. Esc steps up. Del moves the hovered file or folder to the Recycle Bin, and Shift+Del deletes it permanently.
+            Two levels of the open folder are drawn. Double-click a name in the diagram to open that folder, as deep as the path goes. Files in that folder are listed by name.
+            Type or paste a folder in the path on the canvas and press Enter. Back and Forward move through folders you opened. Esc steps up. Del moves the hovered file or folder to the Recycle Bin, and Shift+Del deletes it permanently.
             Uninstall starts that program's own uninstaller.
           </p>
         </aside>
@@ -611,9 +641,48 @@ export default function Studio() {
             <button type="button" className="ghost" onClick={() => setNav((currentNav) => step(currentNav, 1))} disabled={!canForward}>
               Forward
             </button>
-            <p className="pwd" title={current.path}>
-              {current.path}
-            </p>
+            <input
+              ref={pwdRef}
+              className="pwd"
+              aria-label="Current folder"
+              title={path}
+              value={path}
+              spellCheck={false}
+              disabled={scanning}
+              onFocus={(event) => {
+                pwdFocused.current = true;
+                event.currentTarget.select();
+              }}
+              onBlur={(event) => {
+                pwdFocused.current = false;
+                if (pwdCommit.current) {
+                  pwdCommit.current = false;
+                  return;
+                }
+                const typed = event.currentTarget.value.trim();
+                if (!scanning && typed && !samePath(typed, current.path)) {
+                  goToPath(typed);
+                  return;
+                }
+                setPath(current.path);
+                setShownPath(current.path);
+              }}
+              onChange={(event) => setPath(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  pwdCommit.current = true;
+                  goToPath(event.currentTarget.value);
+                  event.currentTarget.blur();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  pwdCommit.current = true;
+                  setPath(current.path);
+                  setShownPath(current.path);
+                  event.currentTarget.blur();
+                }
+              }}
+            />
           </div>
           <Scene root={current} view={view} explode={explode} onHover={setHover} onSelect={openNode} />
           <p className="caption">{viewMeta.caption}</p>
@@ -746,6 +815,17 @@ type StreamMessage =
   | { type: "done"; result: ScanResult }
   | { type: "folder"; node: UsageNode }
   | { type: "error"; message: string };
+
+function ancestors(root: UsageNode, folderPath: string): UsageNode[] | null {
+  if (samePath(root.path, folderPath)) return [];
+  for (const child of root.children) {
+    if (child.kind !== "dir") continue;
+    if (samePath(child.path, folderPath)) return [child];
+    const nested = ancestors(child, folderPath);
+    if (nested) return [child, ...nested];
+  }
+  return null;
+}
 
 function findDir(node: UsageNode, folderPath: string): UsageNode | null {
   if (node.kind === "dir" && samePath(node.path, folderPath)) return node;
