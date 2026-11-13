@@ -1,0 +1,44 @@
+# Disk Usage Analyzer — Guide
+
+## 1. Scan something
+
+- Click a **💾 drive** button, or **📂 Browse…** to pick a folder, or type a path and press **Enter** / **▶ Scan**.
+- The status bar shows files, folders and bytes found so far. **Cancel** stops early and keeps the partial result.
+- Folders Windows won't let you read are marked **⚠ access denied**. Run the app as administrator to include them.
+
+## 2. Find what's big
+
+- **Tree (left):** children are sorted largest first. The bar is the item's share of its parent folder.
+- **Treemap (right):** each rectangle is a file, sized by bytes and colored by type (see the legend).
+  Grey frames are folders. Hover for details, click to select, double-click to zoom in.
+  Use **⬆ Up** or the breadcrumb to zoom back out.
+- **📊 Largest files:** the 500 biggest files under the folder you are viewing. Double-click one to find it in the treemap.
+
+## 3. Clean up
+
+Right-click any file or folder (tree, treemap or list):
+
+| Menu item | Key | What happens |
+| --- | --- | --- |
+| Move to Recycle Bin | `Del` | Restorable from the Recycle Bin |
+| Delete permanently | `Shift+Del` | Gone for good, no undo |
+| Open | | Opens with the default program |
+| Show in Explorer | | Opens Explorer with the item selected |
+| Copy path | | Puts the full path on the clipboard |
+
+A confirmation dialog always shows the name, path and size first. You can switch between Recycle Bin and
+permanent delete in that dialog. After deleting, every parent folder's size updates right away, and the status
+bar keeps a running total of space freed this session.
+
+Safety rules: the scanned root folder can't be deleted, and symlinks/junctions are never followed.
+
+## 4. Keyboard
+
+`↑ ↓` select · `← →` collapse/expand · `Enter` zoom in · `Backspace` zoom out · `Del` / `Shift+Del` delete · `Esc` cancel.
+
+## 5. Build from source
+
+```sh
+cargo build --release
+target/release/disk-usage-analyzer.exe [folder]
+```

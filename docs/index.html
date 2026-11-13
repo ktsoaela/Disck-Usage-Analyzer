@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Disk Usage Analyzer — see what fills your drive</title>
+  <meta name="description" content="Disk Usage Analyzer is a fast Rust app that shows what is using your disk space as a tree and a treemap, and lets you delete files and folders right where you find them." />
+  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <style>
+    :root {
+      --bg: #07080b;
+      --card: #12151d;
+      --ink: #f5f7fb;
+      --muted: rgba(232, 238, 249, 0.72);
+      --line: rgba(255, 255, 255, 0.12);
+      --accent: #f0c75a;
+      --red: #e05757;
+      --green: #4fbf8a;
+      --blue: #4aa8d8;
+      --purple: #9b6fe0;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font: 17px/1.55 "Segoe UI", system-ui, sans-serif;
+    }
+    a { color: inherit; }
+    img { max-width: 100%; display: block; }
+    .wrap { width: min(1080px, calc(100% - 32px)); margin: 0 auto; }
+    header.bar {
+      position: sticky; top: 0; z-index: 3;
+      background: rgba(7, 8, 11, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav { min-height: 72px; display: flex; align-items: center; gap: 28px; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: 20px; letter-spacing: -0.03em; }
+    .brand img { width: 36px; height: 36px; }
+    .nav-links { display: flex; gap: 22px; margin-left: 12px; }
+    .nav-links a { text-decoration: none; color: var(--muted); font-size: 15px; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav .end { margin-left: auto; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 46px; padding: 0 22px; border-radius: 999px;
+      text-decoration: none; font-weight: 700; border: 1px solid transparent;
+    }
+    .btn.fill { background: var(--accent); color: #0b0d12; }
+    .btn.fill:hover { background: white; }
+    .btn.line { background: transparent; color: var(--ink); border-color: var(--line); }
+    .btn.line:hover { border-color: var(--ink); }
+    .hero { padding: 78px 0 40px; text-align: center; }
+    .kicker { margin: 0 0 18px; letter-spacing: .16em; text-transform: uppercase; font-size: 12px; font-weight: 700; color: var(--accent); }
+    h1 { margin: 0; font-size: clamp(42px, 6.4vw, 72px); line-height: .98; letter-spacing: -0.045em; font-weight: 760; }
+    h1 .accent { display: block; color: var(--accent); }
+    .sub { max-width: 660px; margin: 22px auto 0; color: var(--muted); font-size: 20px; }
+    .hero-actions { display: flex; justify-content: center; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+
+    /* A small treemap drawn in CSS, as a picture of what the app shows. */
+    .shot {
+      margin: 48px auto 0; max-width: 860px; text-align: left;
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .5);
+    }
+    .shot .titlebar { display: flex; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); align-items: center; }
+    .shot .titlebar i { width: 11px; height: 11px; border-radius: 50%; background: #333a48; display: inline-block; }
+    .shot .titlebar span { margin-left: 8px; }
+    .shot .body { display: grid; grid-template-columns: 38% 1fr; min-height: 300px; }
+    .shot .rows { border-right: 1px solid var(--line); padding: 10px 0; font-size: 13px; }
+    .shot .row { display: grid; grid-template-columns: 1fr 64px 62px; gap: 8px; align-items: center; padding: 4px 12px; }
+    .shot .row.sel { background: rgba(240, 199, 90, .16); }
+    .shot .row .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .shot .row .b { height: 8px; border-radius: 4px; background: #2a2f3c; overflow: hidden; }
+    .shot .row .b em { display: block; height: 100%; background: var(--green); }
+    .shot .row .s { text-align: right; font: 12px Consolas, monospace; color: var(--muted); }
+    .tm { display: grid; padding: 6px; gap: 3px; grid-template-columns: 5fr 3fr 2fr; grid-template-rows: 3fr 2fr 1fr; }
+    .tm div { border-radius: 2px; font-size: 11px; padding: 3px 5px; color: rgba(0,0,0,.75); background-image: linear-gradient(135deg, rgba(255,255,255,.35), rgba(0,0,0,.35)); }
+    .tm .v { background-color: var(--red); grid-row: 1 / 4; }
+    .tm .g { background-color: var(--purple); grid-column: 2 / 4; }
+    .tm .i { background-color: var(--accent); grid-row: 2 / 4; }
+    .tm .p { background-color: var(--blue); }
+    .tm .d { background-color: var(--green); }
+
+    section { padding: 72px 0; }
+    section.wash { background: #0d1016; }
+    h2 { margin: 0 0 10px; font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.035em; line-height: 1.05; }
+    .center { text-align: center; }
+    .lead { color: var(--muted); margin: 0 auto 34px; max-width: 660px; }
+    .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .tool { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 16px 16px; min-height: 148px; }
+    .tool strong { display: block; margin-bottom: 6px; }
+    .tool span { color: var(--muted); font-size: 15px; }
+    kbd { font: 13px Consolas, monospace; background: #07080b; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--ink); }
+    .run { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; text-align: left; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px; min-width: 0; }
+    .card .os { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+    .card h3 { margin: 8px 0; font-size: 28px; letter-spacing: -0.03em; }
+    .card p { margin: 0 0 14px; color: var(--muted); }
+    pre {
+      margin: 0; padding: 14px 16px; border-radius: 12px;
+      background: #07080b; border: 1px solid var(--line);
+      overflow: auto; font: 14px/1.5 Consolas, "Cascadia Mono", monospace;
+    }
+    .fine { color: var(--muted); font-size: 14px; margin: 22px auto 0; max-width: 720px; }
+    .fine a { color: var(--accent); }
+    footer { border-top: 1px solid var(--line); padding: 42px 0 28px; color: var(--muted); }
+    .foot { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 24px; }
+    footer a { color: var(--ink); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    footer h3 { margin: 0 0 10px; color: white; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+    footer ul { list-style: none; margin: 0; padding: 0; }
+    footer li { margin: 0 0 7px; }
+    .legal { margin-top: 28px; font-size: 13px; }
+    @media (max-width: 800px) {
+      .tools, .run, .foot { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .nav .end .btn { padding: 0 16px; }
+      h1 { font-size: 40px; }
+      .shot .body { grid-template-columns: 1fr; }
+      .shot .rows { border-right: 0; border-bottom: 1px solid var(--line); }
+      .tm { min-height: 220px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div class="wrap nav">
+      <a class="brand" href="#top"><img src="logo.svg" alt="" /> Disk Usage Analyzer</a>
+      <nav class="nav-links">
+        <a href="#find">Find</a>
+        <a href="#clean">Clean up</a>
+        <a href="#run">Run it</a>
+        <a href="guide.md">Guide</a>
+      </nav>
+      <div class="end"><a class="btn fill" href="#run">Get it</a></div>
+    </div>
+  </header>
+
+  <main id="top">
+    <div class="hero">
+      <div class="wrap">
+        <p class="kicker">Disk Usage Analyzer · written in Rust</p>
+        <h1>See what fills your drive.<span class="accent">Delete it right there.</span></h1>
+        <p class="sub">Scan a drive or folder in seconds, spot the big stuff in a tree and a treemap, then send it to the Recycle Bin without opening another window.</p>
+        <div class="hero-actions">
+          <a class="btn fill" href="#run">Run it</a>
+          <a class="btn line" href="guide.md">Read the guide</a>
+        </div>
+
+        <div class="shot" aria-label="Picture of the app: a size-sorted folder list next to a treemap">
+          <div class="titlebar"><i></i><i></i><i></i><span>Disk Usage Analyzer — D:\</span></div>
+          <div class="body">
+            <div class="rows">
+              <div class="row"><span class="n">📁 D:\</span><span class="b"><em style="width:100%"></em></span><span class="s">412 GB</span></div>
+              <div class="row sel"><span class="n">&nbsp;&nbsp;📁 Videos</span><span class="b"><em style="width:46%;background:var(--accent)"></em></span><span class="s">190 GB</span></div>
+              <div class="row"><span class="n">&nbsp;&nbsp;📁 Games</span><span class="b"><em style="width:27%"></em></span><span class="s">111 GB</span></div>
+              <div class="row"><span class="n">&nbsp;&nbsp;📁 Photos</span><span class="b"><em style="width:14%"></em></span><span class="s">58 GB</span></div>
+              <div class="row"><span class="n">&nbsp;&nbsp;📁 Utilities</span><span class="b"><em style="width:8%"></em></span><span class="s">33 GB</span></div>
+              <div class="row"><span class="n">&nbsp;&nbsp;📁 Documents</span><span class="b"><em style="width:5%"></em></span><span class="s">20 GB</span></div>
+            </div>
+            <div class="tm">
+              <div class="v">Videos</div>
+              <div class="g">Games</div>
+              <div class="i">Photos</div>
+              <div class="p">Utilities</div>
+              <div class="d">Docs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="find" class="wash">
+      <div class="wrap">
+        <div class="center">
+          <h2>Find what is big</h2>
+          <p class="lead">The scan reads folders in parallel and shows its progress as it goes. Three views then show you where the space went.</p>
+        </div>
+        <div class="tools">
+          <article class="tool"><strong>Size-sorted tree</strong><span>Every folder opens with its largest items first. A bar shows each item's share of its parent, next to its size and file count.</span></article>
+          <article class="tool"><strong>Treemap</strong><span>Each file is a rectangle sized by its bytes and colored by type: video, images, archives, programs. Double-click a folder to zoom in.</span></article>
+          <article class="tool"><strong>Largest files</strong><span>The 500 biggest files under the folder you are viewing. Double-click one to find it in the treemap.</span></article>
+          <article class="tool"><strong>Any drive or folder</strong><span>One click per drive, or browse to a folder. You can also pass a path on the command line.</span></article>
+          <article class="tool"><strong>Keyboard friendly</strong><span><kbd>↑</kbd> <kbd>↓</kbd> select, <kbd>←</kbd> <kbd>→</kbd> collapse or expand, <kbd>Enter</kbd> zoom in, <kbd>Backspace</kbd> zoom out.</span></article>
+          <article class="tool"><strong>Honest numbers</strong><span>Symlinks and junctions are not followed, so nothing is counted twice. Folders it can't read are marked.</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="clean">
+      <div class="wrap">
+        <div class="center">
+          <h2>Clean up without leaving</h2>
+          <p class="lead">Many analyzers only show you the problem. Here you right-click the file or folder and remove it on the spot.</p>
+        </div>
+        <div class="tools">
+          <article class="tool"><strong>Recycle Bin first</strong><span><kbd>Del</kbd> moves the item to the Recycle Bin, so you can get it back later.</span></article>
+          <article class="tool"><strong>Or gone for good</strong><span><kbd>Shift</kbd>+<kbd>Del</kbd> deletes permanently, after a warning that it can't be undone. Read-only files are handled too.</span></article>
+          <article class="tool"><strong>Always confirmed</strong><span>A dialog shows the name, path and size first. Sizes update right away, and a running total shows the space you freed.</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="run" class="wash">
+      <div class="wrap center">
+        <h2>Run it</h2>
+        <p class="lead">You need Rust to build it. On Windows you also need the MSVC C++ build tools. Everything else is in this repository.</p>
+        <div class="run">
+          <article class="card">
+            <div class="os">Build</div>
+            <h3>From source</h3>
+            <p>Clone the repository and build an optimized program.</p>
+            <pre>git clone https://github.com/ktsoaela/Disck-Usage-Analyzer
+cd Disck-Usage-Analyzer
+cargo build --release</pre>
+          </article>
+          <article class="card">
+            <div class="os">Windows</div>
+            <h3>Start scanning</h3>
+            <p>Open the app, or give it a folder to scan straight away. Run it as administrator to include system folders.</p>
+            <pre>target\release\disk-usage-analyzer.exe
+target\release\disk-usage-analyzer.exe "D:\"</pre>
+          </article>
+        </div>
+        <p class="fine">The guide covers every view, menu item and key. <a href="guide.md">Guide</a> · <a href="https://github.com/ktsoaela/Disck-Usage-Analyzer">Source</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div>
+        <a class="brand" href="#top"><img src="logo.svg" alt="" /> Disk Usage Analyzer</a>
+        <p>A Rust disk usage analyzer with a treemap, and deletes built in.</p>
+      </div>
+      <div>
+        <h3>On this page</h3>
+        <ul>
+          <li><a href="#find">Find</a></li>
+          <li><a href="#clean">Clean up</a></li>
+          <li><a href="#run">Run it</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Docs</h3>
+        <ul>
+          <li><a href="guide.md">Guide</a></li>
+          <li><a href="https://github.com/ktsoaela/Disck-Usage-Analyzer">Repository</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="wrap legal">MIT license. Copyright 2026 Khotso Tsoaela.</div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[package]
+name = "disk-usage-analyzer"
+version = "0.1.0"
+edition = "2021"
+description = "Graphical disk usage analyzer with treemap view and delete support"
+
+[dependencies]
+eframe = "0.29"
+rfd = "0.15"
+trash = "5"
+rayon = "1"
+open = "5"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
