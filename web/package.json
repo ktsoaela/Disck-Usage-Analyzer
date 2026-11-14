@@ -69,10 +69,10 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "Disk Usage Analyzer 3D",
-      "artifactName": "DiskUsageAnalyzer3D-Setup-${version}.${ext}"
+      "artifactName": "DiskUsageAnalyzer3D-Setup.${ext}"
     },
     "portable": {
-      "artifactName": "DiskUsageAnalyzer3D-${version}-portable.${ext}"
+      "artifactName": "DiskUsageAnalyzer3D.${ext}"
     }
   }
 }

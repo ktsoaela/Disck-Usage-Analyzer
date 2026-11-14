@@ -97,7 +97,8 @@ fn open_window(url: &str, mut child: Option<Child>) -> wry::Result<()> {
         .with_title("Disk Usage Analyzer 3D")
         .with_inner_size(tao::dpi::LogicalSize::new(1320.0, 840.0))
         .with_min_inner_size(tao::dpi::LogicalSize::new(820.0, 500.0))
-        .build(&event_loop)?;
+        .build(&event_loop)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     let _webview = WebViewBuilder::new().with_url(url).build(&window)?;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
