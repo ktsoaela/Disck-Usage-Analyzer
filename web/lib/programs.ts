@@ -91,7 +91,7 @@ export function startUninstall(command: string) {
   const parts = splitCommand(command);
   if (!parts) throw new Error("That program has no uninstall command.");
   const file = resolveExe(parts.file);
-  const child = spawn(file, parts.args, { detached: true, stdio: "ignore", windowsHide: false });
+  const child = spawn(/*turbopackIgnore: true*/ file, parts.args, { detached: true, stdio: "ignore", windowsHide: false });
   child.on("error", () => {
     // The studio already returned. The dialog reported that the uninstaller was started.
   });

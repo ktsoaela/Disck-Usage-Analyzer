@@ -57,16 +57,16 @@ function dropEmpty(children: UsageNode[]): UsageNode[] {
 export function removeFolder(node: UsageNode, folderPath: string): UsageNode {
   if (node.kind !== "dir") return node;
   const target = norm(folderPath);
-  let gone: UsageNode | null = null;
+  const removedBox: { node: UsageNode | null } = { node: null };
   const children = node.children.flatMap((child) => {
     if (child.kind === "dir" && norm(child.path) === target) {
-      gone = child;
+      removedBox.node = child;
       return [];
     }
     if (child.kind === "dir" && isInside(child.path, folderPath)) {
       const next = removeFolder(child, folderPath);
       if (next !== child) {
-        gone = {
+        removedBox.node = {
           ...child,
           size: Math.max(0, child.size - next.size),
           files: Math.max(0, child.files - next.files),
@@ -79,8 +79,8 @@ export function removeFolder(node: UsageNode, folderPath: string): UsageNode {
     }
     return [child];
   });
-  if (gone === null) return node;
-  const removed = gone;
+  const removed = removedBox.node;
+  if (!removed) return node;
   return {
     ...node,
     size: Math.max(0, node.size - removed.size),

@@ -364,7 +364,7 @@ export default function Studio() {
     setScanning(true);
     setError("");
     setProgress({ files: 0, bytes: 0, denied: 0 });
-    let opened: UsageNode | null = null;
+    const found: { node: UsageNode | null } = { node: null };
     let failure = "";
     try {
       const response = await fetch("/api/folder", {
@@ -387,15 +387,15 @@ export default function Studio() {
         if (message.type === "progress") {
           setProgress({ files: message.files, bytes: message.bytes, denied: message.denied });
         } else if (message.type === "folder") {
-          opened = message.node;
+          found.node = message.node;
         } else if (message.type === "error" && message.message !== "The scan was cancelled.") {
           failure = message.message;
         }
       });
       if (controller.signal.aborted) return;
       if (failure) throw new Error(failure);
-      if (!opened) throw new Error("That folder could not be read.");
-      const fresh = opened;
+      const fresh = found.node;
+      if (!fresh) throw new Error("That folder could not be read.");
       let nextRoot = fresh;
       let replacedRoot = false;
       setModel((currentModel) => {
